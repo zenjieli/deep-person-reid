@@ -12,6 +12,30 @@ from torchreid.utils import (
     resume_from_checkpoint, load_pretrained_weights, compute_model_complexity
 )
 
+def load_and_infer(input0):
+    import onnxruntime as ort
+    import onnx    
+    import torchvision.transforms as transforms
+
+    model_path = '/tmp/resnet50_output.onnx'
+    model = onnx.load(model_path)
+    onnx.checker.check_model(model)
+
+    ort_session = ort.InferenceSession(model_path)
+    
+    outputs = ort_session.run(None, {'input0': input0})        
+    test_result(outputs[0])
+
+def test_result(np_output):
+    np.testing.assert_equal(np_output.shape, (1, 2048))
+    np.testing.assert_almost_equal(np_output[0][0], 0, decimal = 4, verbose=True)
+    np.testing.assert_almost_equal(np_output[0][1], 0.01189869549125433, decimal=4, verbose=True)
+    np.testing.assert_almost_equal(np_output[0][2], 0.044852934777736664, decimal=4, verbose=True)
+    np.testing.assert_almost_equal(np_output[0][100], 0.2132769227027893, decimal=4, verbose=True)    
+    np.testing.assert_almost_equal(np_output[0][-3], 0.08891487121582031, decimal=4, verbose=True)
+    np.testing.assert_almost_equal(np_output[0][-2], 0.006080144084990025, decimal=4, verbose=True)
+    np.testing.assert_almost_equal(np_output[0][-1], 0.6892564296722412, decimal=4, verbose=True)
+
 def main():
     parser = argparse.ArgumentParser()
 
@@ -23,7 +47,8 @@ def main():
     )
         
     args = parser.parse_args()    
-    use_gpu = torch.cuda.is_available()
+    # use_gpu = torch.cuda.is_available()
+    use_gpu = False
         
     print('Building model: {}'.format(args.model))
     model = torchreid.models.build_model(
@@ -49,15 +74,24 @@ def main():
         features = model(img)
 
     # Test
-    np.testing.assert_almost_equal(features[0][0].item(), 0, decimal = 4, verbose=True)
-    np.testing.assert_almost_equal(features[0][1].item(), 0.01189869549125433, decimal=4, verbose=True)
-    np.testing.assert_almost_equal(features[0][2].item(), 0.044852934777736664, decimal=4, verbose=True)
-    np.testing.assert_almost_equal(features[0][100].item(), 0.2132769227027893, decimal=4, verbose=True)    
-    np.testing.assert_almost_equal(features[0][-3].item(), 0.08891487121582031, decimal=4, verbose=True)
-    np.testing.assert_almost_equal(features[0][-2].item(), 0.006080144084990025, decimal=4, verbose=True)
-    np.testing.assert_almost_equal(features[0][-1].item(), 0.6892564296722412, decimal=4, verbose=True)
+    test_result(features.cpu().numpy())
+    # np.testing.assert_almost_equal(features[0][0], 0, decimal = 4, verbose=True)
+    # np.testing.assert_almost_equal(features[0][1], 0.01189869549125433, decimal=4, verbose=True)
+    # np.testing.assert_almost_equal(features[0][2], 0.044852934777736664, decimal=4, verbose=True)
+    # np.testing.assert_almost_equal(features[0][100], 0.2132769227027893, decimal=4, verbose=True)    
+    # np.testing.assert_almost_equal(features[0][-3], 0.08891487121582031, decimal=4, verbose=True)
+    # np.testing.assert_almost_equal(features[0][-2], 0.006080144084990025, decimal=4, verbose=True)
+    # np.testing.assert_almost_equal(features[0][-1], 0.6892564296722412, decimal=4, verbose=True)
+
+    import onnx
+    out_path = '/tmp/resnet50_output.onnx'
+    torch.onnx._export(model, img, out_path, input_names=['input0'], output_names=['output0'])
+    print('===> Loading and checking exported model')
+    onnx_model = onnx.load(out_path)
+    onnx.checker.check_model(onnx_model)        
+    print("===> Passed")
     
-    print("Passed")
+    load_and_infer(img.cpu().numpy())
 
 if __name__ == '__main__':
     main()

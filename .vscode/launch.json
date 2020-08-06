@@ -15,7 +15,7 @@
             "name": "Test",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/custom/test.py",
+            "program": "${workspaceFolder}/custom/extract_features.py",
             "console": "integratedTerminal",
             "args": [
                 "--model",
